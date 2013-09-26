@@ -1,0 +1,20 @@
+learnConnectivity estimates function connectivity maps from fMRI data,
+as described in these two papers:
+C. Baldassano, M.C. Iordan, D.M. Beck, L. Fei-Fei. "Voxel-Level
+Functional Connectivity using Spatial Regularization." Neuroimage.
+2012 Jul 28;63(3):1099-1106. doi: 10.1016/j.neuroimage.2012.07.046
+C. Baldassano, M.C. Iordan, D.M. Beck, L. Fei-Fei. "Discovering
+Voxel-Level Functional Connectivity Between Cortical Regions."
+To appear in Machine Learning and Interpretation in Neuroimaging 2012,
+Springer Lecture Notes in Artificial Intellgence.
+
+This function requires the CVX package to be installed. CVX can be
+downloaded for free from http://cvxr.com/cvx/ (this function has been
+tested with CVX v1.22 and v2.0 beta).
+This function has been tested on MATLAB versions 2010b, 2011a, 2011b,
+and 2012a.
+
+
+Please cite these papers if you publish results using this function.
+Any comments, questions, or bug reports can be directed to
+Chris Baldassano <chrisb33@cs.stanford.edu> <chrisbaldassano.com>
