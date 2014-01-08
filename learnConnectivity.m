@@ -1,26 +1,28 @@
 function connWeights = learnConnectivity(varargin)
 %learnConnectivity Learns connectivity maps over one or two regions
-%   This function requires the CVX package to be installed. CVX can be
-%   downloaded for free from http://cvxr.com/cvx/ (this function has been
-%   tested with CVX v1.22 and v2.0 beta).
-%   This function has been tested on MATLAB versions 2010b, 2011a, 2011b,
-%   and 2012a.
-%
 %   learnConnectivity estimates function connectivity maps from fMRI data,
 %   as described in these two papers:
+%
 %   C. Baldassano, M.C. Iordan, D.M. Beck, L. Fei-Fei. "Voxel-Level
 %   Functional Connectivity using Spatial Regularization." Neuroimage.
 %   2012 Jul 28;63(3):1099-1106. doi: 10.1016/j.neuroimage.2012.07.046
 %
 %   C. Baldassano, M.C. Iordan, D.M. Beck, L. Fei-Fei. "Discovering
 %   Voxel-Level Functional Connectivity Between Cortical Regions."
-%   To appear in Machine Learning and Interpretation in Neuroimaging 2012,
-%   Springer Lecture Notes in Artificial Intellgence.
+%   Machine Learning and Interpretation in Neuroimaging Workshop, Neural
+%   Information Processing Systems (NIPS) 2012.
 %
 %   Please cite these papers if you publish results using this function.
 %   Any comments, questions, or bug reports can be directed to
 %   Chris Baldassano <chrisb33@cs.stanford.edu> <chrisbaldassano.com>
 %
+%   Using learnConnectivity in 'both' mode (described below) requires 
+%   the CVX package to be installed. CVX can be downloaded for free from
+%   http://cvxr.com/cvx/ (this function has been tested with CVX v1.22 and 
+%   v2.0 beta).
+%
+%   This function has been tested on MATLAB versions 2010b, 2011a, 2011b,
+%   and 2012a.
 %
 %
 %
@@ -50,7 +52,9 @@ function connWeights = learnConnectivity(varargin)
 %
 %   The return value is a column vector of length numvox1 giving the
 %   relative connectivity strength for each voxel (weights may be positive
-%   or negative).
+%   or negative). This connectivity map is computed using the closed-form
+%   solution to the quadratic objective rather than CVX.
+%
 %
 %
 %
@@ -80,7 +84,7 @@ function connWeights = learnConnectivity(varargin)
 %   nonnegative.
 
 
-% Copyright (c) 2012, Christopher Baldassano, Stanford University
+% Copyright (c) 2014, Christopher Baldassano, Stanford University
 % All rights reserved.
 % 
 % Redistribution and use in source and binary forms, with or without
@@ -255,6 +259,8 @@ if (~bothRegionsFlag)
     % Learn connectivity map over one region
     
     spatialDiff = buildSpatialDiff(adj1,quiet);
+    spatialDiff_aug = [spatialDiff zeros(2810,1)];
+    bold1_aug = [bold1;ones(1,1224)];
     
     if (validateLambdaFlag)
         % Tune lambda to maximize variance explained in cross-validation
@@ -271,14 +277,15 @@ if (~bothRegionsFlag)
             for leaveOutRun = 1:numRuns
                 trainTRs = runLabels~=leaveOutRun;
                 testTRs = runLabels==leaveOutRun;
-                cvx_begin quiet
-                    cvx_solver sedumi
-                    variables b a(size(bold1,1))
-                    minimize ((1/sum(trainTRs))*...
-                        square_pos(norm(a'*bold1(:,trainTRs)+b- ...
-                            mean(bold2(:,trainTRs),1),2)) + ...
-                        valLambda*square_pos(norm(spatialDiff*a,2)))
-                cvx_end
+
+                ab = ((1/sum(trainTRs)) * ...
+                      (bold1_aug(:,trainTRs)*bold1_aug(:,trainTRs)') + ...
+                      valLambda*(spatialDiff_aug'*spatialDiff_aug)) \ ...
+                     ((1/sum(trainTRs)) * ...
+                      bold1_aug(:,trainTRs)*mean(bold2(:,trainTRs),1)');
+                a = ab(1:(end-1));
+                b = ab(end);
+                
                 testFracExp(lambdaInd) = testFracExp(lambdaInd) + ...
                     (1-norm(a'*bold1(:,testTRs)+b- ...
                        mean(bold2(:,testTRs),1),2)^2/(bold2VarPerRun))...
@@ -291,14 +298,12 @@ if (~bothRegionsFlag)
         dispQuiet(['Using lambda = ' num2str(lambda)],quiet);
     end
     
-    % Estimate connectivity map
-    cvx_begin quiet
-        cvx_solver sedumi
-        variables b a(size(bold1,1))
-        minimize ((1/size(bold1,2))*...
-            square_pos(norm(a'*bold1+b-mean(bold2,1),2)) + ...
-            lambda*square_pos(norm(spatialDiff*a,2)))
-    cvx_end
+    % Estimate connectivity map   
+    ab = ((1/size(bold1,2)) * (bold1_aug*bold1_aug') + ...
+          lambda*(spatialDiff_aug'*spatialDiff_aug)) \ ...
+         ((1/size(bold1,2)) * bold1_aug*mean(bold2,1)');
+    a = ab(1:(end-1));
+    b = ab(end);
     
     connWeights = a;
     fracVar = 1-norm(a'*bold1+b-mean(bold2,1),2)^2/...
@@ -342,6 +347,7 @@ else
            end
            beta = lastbeta+s;
            
+           dispQuiet(['    Obj = ' num2str(norm(X*(beta),2)^2)],quiet);
            if (norm(s,2) < stepEpsilon)
                break;
            end

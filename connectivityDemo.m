@@ -71,7 +71,9 @@ scatter(V4FlatmapLocations(weightInds,1),V4FlatmapLocations(weightInds,2),...
 title('Connectivity Weights with PPA');
 colorbar;
 
-
+disp('Press any key to start example two...');
+pause;
+disp(' ');
 
 
 
