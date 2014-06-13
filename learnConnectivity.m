@@ -259,8 +259,8 @@ if (~bothRegionsFlag)
     % Learn connectivity map over one region
     
     spatialDiff = buildSpatialDiff(adj1,quiet);
-    spatialDiff_aug = [spatialDiff zeros(2810,1)];
-    bold1_aug = [bold1;ones(1,1224)];
+    spatialDiff_aug = [spatialDiff zeros(size(spatialDiff,1),1)];
+    bold1_aug = [bold1;ones(1,size(bold1,2))];
     
     if (validateLambdaFlag)
         % Tune lambda to maximize variance explained in cross-validation
