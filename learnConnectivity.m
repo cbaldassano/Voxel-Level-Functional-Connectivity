@@ -22,7 +22,7 @@ function connWeights = learnConnectivity(varargin)
 %   v2.0 beta).
 %
 %   This function has been tested on MATLAB versions 2010b, 2011a, 2011b,
-%   and 2012a.
+%   2012a, and 2015a.
 %
 %
 %
