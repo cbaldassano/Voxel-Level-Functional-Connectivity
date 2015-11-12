@@ -29,12 +29,20 @@ end
 
 
 % Learn a connectivity map over hV4, for connectivity to PPA
+disp('Learning connectivity map over hV4 for PPA connectivity');
 V4Weights = learnConnectivity('type','one','adj1',adjV4,'bold1',V4bold,...
     'bold2',PPAbold,'runLabels',runLabels,'lambdaVector',logspace(-4,5,10));
+disp(' ');
+
+% Learn a nonnegative connectivity map over hV4, for connectivity to PPA
+disp('Learning nonnegative connectivity map over hV4 for PPA connectivity');
+V4Weights_NN = learnConnectivity('type','one','adj1',adjV4,...
+    'bold1',V4bold,'bold2',PPAbold,'runLabels',runLabels,...
+    'lambdaVector',logspace(-4,5,10),'allowNegative',0);
 
 % Draws a figure showing hV4 eccentricity and the learned weights
-figure('Position',[200 800 1200 500]);
-subplot(1,2,1); hold on; axis([-150 125 -125 -30]);
+figure('Position',[200 200 1800 500]);
+subplot(1,3,1); hold on; axis([-150 125 -125 -30]);
 drawConvHull([V1FlatmapLocations(V1FlatmapLocations(:,1)<0,:); ...
     V2FlatmapLocations(V2FlatmapLocations(:,1)<0,:); ...
     VPFlatmapLocations(VPFlatmapLocations(:,1)<0,:)]);
@@ -52,8 +60,8 @@ scatter(V4FlatmapLocations(:,1),V4FlatmapLocations(:,2),40,...
 title('Eccentricity of V4 Receptive Fields');
 colorbar;
 
-subplot(1,2,2); hold on; axis([-150 125 -125 -30]);
-[~,weightInds] = sort(V4Weights,'descend');
+subplot(1,3,2); hold on; axis([-150 125 -125 -30]);
+[~,weightInds] = sort(V4Weights,'ascend');
 drawConvHull([V1FlatmapLocations(V1FlatmapLocations(:,1)<0,:); ...
     V2FlatmapLocations(V2FlatmapLocations(:,1)<0,:); ...
     VPFlatmapLocations(VPFlatmapLocations(:,1)<0,:)]);
@@ -71,6 +79,24 @@ scatter(V4FlatmapLocations(weightInds,1),V4FlatmapLocations(weightInds,2),...
 title('Connectivity Weights with PPA');
 colorbar;
 
+subplot(1,3,3); hold on; axis([-150 125 -125 -30]);
+[~,weightInds] = sort(V4Weights_NN,'ascend');
+drawConvHull([V1FlatmapLocations(V1FlatmapLocations(:,1)<0,:); ...
+    V2FlatmapLocations(V2FlatmapLocations(:,1)<0,:); ...
+    VPFlatmapLocations(VPFlatmapLocations(:,1)<0,:)]);
+text(-40,-70,'lV1,lV2,lVP');
+drawConvHull([V1FlatmapLocations(V1FlatmapLocations(:,1)>0,:); ...
+    V2FlatmapLocations(V2FlatmapLocations(:,1)>0,:); ...
+    VPFlatmapLocations(VPFlatmapLocations(:,1)>0,:)]);
+text(-15,-90,'rV1,rV2,rVP');
+drawConvHull(V4FlatmapLocations(V4FlatmapLocations(:,1)<0,:));
+text(-130,-90,'lV4');
+drawConvHull(V4FlatmapLocations(V4FlatmapLocations(:,1)>0,:));
+text(95,-90,'rV4');
+scatter(V4FlatmapLocations(weightInds,1),V4FlatmapLocations(weightInds,2),...
+    40,V4Weights_NN(weightInds),'filled');
+title('Nonnegative connectivity Weights with PPA');
+colorbar;
 disp('Press any key to start example two...');
 pause;
 disp(' ');
@@ -117,6 +143,7 @@ else
 end
 
 % Learn connectivity maps over V1 and VP
+disp('Learning simultaneous maps over V1 and VP');
 connWeights = learnConnectivity('type','both','adj1',adjV1,'bold1',V1bold,...
     'adj2',adjVP,'bold2',VPbold,'lambda',100,'zscore',1,'numRestarts',2);
 

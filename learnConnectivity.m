@@ -43,6 +43,10 @@ function connWeights = learnConnectivity(varargin)
 %      timepoints labeled 1, then all those labeled 2, then all those
 %      labeled 3, etc.
 %   Optional parameters are:
+%   allowNegative: a 0/1 flag specifying whether negative weights are
+%                  allowed. If 0, then weights are constrained to be
+%                  positive (using quadprog rather than a closed-form
+%                  equation) (default: 1)
 %   lambdaVector: a row vector of all lambda values to try during
 %                 cross-validation (default: logspace(-6,8,60))
 %   zscore: a 0/1 flag specifying whether voxels should be normalized to
@@ -84,7 +88,7 @@ function connWeights = learnConnectivity(varargin)
 %   nonnegative.
 
 
-% Copyright (c) 2014, Christopher Baldassano, Stanford University
+% Copyright (c) 2015, Christopher Baldassano, Stanford University
 % All rights reserved.
 % 
 % Redistribution and use in source and binary forms, with or without
@@ -127,6 +131,7 @@ inpParse.addParamValue('trustDelta',sqrt(0.05));
 inpParse.addParamValue('stepEpsilon',sqrt(0.05)/100);
 inpParse.addParamValue('quiet',0);
 inpParse.addParamValue('matchEpsilon',0.01);
+inpParse.addParamValue('allowNegative',1);
 
 inpParse.parse(varargin{:});
 type = inpParse.Results.type;
@@ -144,6 +149,7 @@ trustDelta = inpParse.Results.trustDelta;
 stepEpsilon = inpParse.Results.stepEpsilon;
 quiet = inpParse.Results.quiet;
 matchEpsilon = inpParse.Results.matchEpsilon;
+allowNegative = inpParse.Results.allowNegative;
 
 isUnset = @(y) any(cellfun(@(x) strcmp(x,y),inpParse.UsingDefaults));
 if (isUnset('type'))
@@ -182,6 +188,8 @@ elseif (strcmp(type,'both'))
             'required for type=both']);
     elseif (~isUnset('lambdaVector') || ~isUnset('runLabels'))
         error('lambdaVector and runLabels cannot be used with type=both');
+    elseif (~isUnset('allowNegative'))
+        error('Nonnegative constraint not implemented for ''both''');
     end
 end
     
@@ -214,6 +222,8 @@ if (~bothRegionsFlag)
                 'length of runLabels']);
         elseif (~isrow(runLabels))
             error('runLabels must be a 1 x numTimepoints row vector');
+        elseif (allowNegative ~= 0 && allowNegative ~= 1)
+            error('allowNegative must be either 0 or 1');
         end
     end
 else
@@ -278,18 +288,14 @@ if (~bothRegionsFlag)
                 trainTRs = runLabels~=leaveOutRun;
                 testTRs = runLabels==leaveOutRun;
 
-                ab = ((1/sum(trainTRs)) * ...
-                      (bold1_aug(:,trainTRs)*bold1_aug(:,trainTRs)') + ...
-                      valLambda*(spatialDiff_aug'*spatialDiff_aug)) \ ...
-                     ((1/sum(trainTRs)) * ...
-                      bold1_aug(:,trainTRs)*mean(bold2(:,trainTRs),1)');
-                a = ab(1:(end-1));
-                b = ab(end);
-                
-                testFracExp(lambdaInd) = testFracExp(lambdaInd) + ...
-                    (1-norm(a'*bold1(:,testTRs)+b- ...
-                       mean(bold2(:,testTRs),1),2)^2/(bold2VarPerRun))...
-                       /numRuns;
+                [a, b] = SingleRegionWeights(bold1_aug, bold2, ...
+                                             spatialDiff_aug, ...
+                                             valLambda, ...
+                                             allowNegative, trainTRs);
+                testFracExp(lambdaInd) = testFracExp(lambdaInd) + (1-...
+                    norm(a'*bold1(:,testTRs)+b- ...
+                    mean(bold2(:,testTRs),1),2)^2 ...
+                    /(bold2VarPerRun))/numRuns;
             end
         end
 
@@ -298,12 +304,9 @@ if (~bothRegionsFlag)
         dispQuiet(['Using lambda = ' num2str(lambda)],quiet);
     end
     
-    % Estimate connectivity map   
-    ab = ((1/size(bold1,2)) * (bold1_aug*bold1_aug') + ...
-          lambda*(spatialDiff_aug'*spatialDiff_aug)) \ ...
-         ((1/size(bold1,2)) * bold1_aug*mean(bold2,1)');
-    a = ab(1:(end-1));
-    b = ab(end);
+    % Estimate final connectivity map   
+    [a, b] = SingleRegionWeights(bold1_aug, bold2, spatialDiff_aug, ...
+                                 lambda, allowNegative, trainTRs);
     
     connWeights = a;
     fracVar = 1-norm(a'*bold1+b-mean(bold2,1),2)^2/...
@@ -368,6 +371,34 @@ else
 end
 
 
+end
+
+% Learn weights over region 1 to predict mean of region 2, using either
+% real-valued weights or non-negative weights
+function [a, b] = SingleRegionWeights(bold1_aug, bold2, spatialDiff_aug,...
+                                      lambda, allowNegative, trainTRs)
+    T = sum(trainTRs);
+    target = mean(bold2(:,trainTRs),1)';
+    C = [sparse(bold1_aug(:,trainTRs)'/sqrt(T)); ...
+         sqrt(lambda)*spatialDiff_aug];
+    H = C'*C;
+    if (allowNegative)
+        ab = H \ (bold1_aug(:,trainTRs)/T*target);
+    else
+        bound = sparse([zeros(size(bold1_aug,1)-1,1);-Inf]);
+        opts_IPC = optimoptions('quadprog','Algorithm', ...
+                   'interior-point-convex','display','off');
+        weights_IPC = quadprog(H, ...
+                sparse(-1*bold1_aug(:,trainTRs)/T*target), ...
+                [], [], [], [], bound,[],[],opts_IPC);
+        opts_TRR = optimoptions('quadprog','Algorithm', ...
+                   'trust-region-reflective','display','off');
+        ab = quadprog(H, ...
+                sparse(-1*bold1_aug(:,trainTRs)/T*target), ...
+                [], [], [], [], bound,[],weights_IPC,opts_TRR);
+    end
+    a = ab(1:(end-1));
+    b = ab(end);
 end
 
 %Build a sparse connectivity matrix from adjacency matrix
