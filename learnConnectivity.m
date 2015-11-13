@@ -306,7 +306,7 @@ if (~bothRegionsFlag)
     
     % Estimate final connectivity map   
     [a, b] = SingleRegionWeights(bold1_aug, bold2, spatialDiff_aug, ...
-                                 lambda, allowNegative, trainTRs);
+                             lambda, allowNegative, true(1,size(bold1,2)));
     
     connWeights = a;
     fracVar = 1-norm(a'*bold1+b-mean(bold2,1),2)^2/...
